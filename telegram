@@ -1,1 +1,119 @@
+import mysql.connector as mysql
+import json
+import logging
+import sys
+import time
+import telepot
+from urllib import request
+from telepot.loop import MessageLoop
+from telepot.namedtuple import InlineKeyboardMarkup, InlineKeyboardButton
+from pprint import pprint
 
+# store the TOKEN for the Telegram Bot
+maxdb = mysql.connect(
+host = "127.0.0.1",
+user = "root",
+passwd = "grace910701",
+database = "temp"
+)
+  
+cursor=maxdb.cursor(buffered=True)
+# cursor.execute("SELECT * FROM sensor")
+# myresult = cursor.fetchall()
+
+TOKEN = '1408443191:AAGcyVwTBJq9_elycSwHhLtB0sKaGzy8WfA'
+bot = telepot.Bot(TOKEN)
+#-------------------------------------------------------------------------------------------------#
+def on_chat_message(msg):
+    content_type, chat_type, chat_id = telepot.glance(msg)
+   
+    if  msg['text'] == '機房資訊':
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text='最新節點溫度', callback_data='newtemp')],
+                    [InlineKeyboardButton(text='目前機房平均溫度', callback_data='averagetemp')],
+                    [InlineKeyboardButton(text='這周更換節點資訊', callback_data='positionchange')],
+                    [InlineKeyboardButton(text='各機櫃溫度', callback_data='eachtemp')],
+                ])
+    elif msg['text'] == '資訊':
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text='最新節點溫度', callback_data='newtemp')],
+                    [InlineKeyboardButton(text='目前機房平均溫度', callback_data='averagetemp')],
+                    [InlineKeyboardButton(text='這周更換節點資訊', callback_data='positionchange')],
+                    [InlineKeyboardButton(text='各機櫃溫度', callback_data='eachtemp')],
+                ])
+    elif msg['text'] == 'temp':
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text='最新節點溫度', callback_data='newtemp')],
+                    [InlineKeyboardButton(text='目前機房平均溫度', callback_data='averagetemp')],
+                    [InlineKeyboardButton(text='這周更換節點資訊', callback_data='positionchange')],
+                    [InlineKeyboardButton(text='各機櫃溫度', callback_data='eachtemp')],
+                ])
+
+    elif msg['text'] == '溫度':
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text='最新節點溫度', callback_data='newtemp')],
+                    [InlineKeyboardButton(text='目前機房平均溫度', callback_data='averagetemp')],
+                    [InlineKeyboardButton(text='這周更換節點資訊', callback_data='positionchange')],
+                    [InlineKeyboardButton(text='各機櫃溫度', callback_data='eachtemp')],
+                ])
+
+    elif msg['text'] == '機房':
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text='最新節點溫度', callback_data='newtemp')],
+                    [InlineKeyboardButton(text='目前機房平均溫度', callback_data='averagetemp')],
+                    [InlineKeyboardButton(text='這周更換節點資訊', callback_data='positionchange')],
+                    [InlineKeyboardButton(text='各機櫃溫度', callback_data='eachtemp')],
+                ])
+
+    elif msg['text'] == '/help':
+        bot.sendMessage(chat_id, '輸入temp就可以選擇你想知道的機房資訊') 
+
+    bot.sendMessage(chat_id, '[想知道甚麼機房資訊呢?]', reply_markup=keyboard)
+
+
+def on_callback_query(msg):
+    
+    query_id, from_id, query_data = telepot.glance(msg, flavor='callback_query')
+
+    print('Callback Query:', query_id, from_id, query_data)
+
+    if(query_data == 'newtemp'):
+        bot.sendMessage(from_id,'Calculating....')
+        query = "select Node_sensor,Message from temp.sensor as t1 where EXISTS (select Node_sensor,max(Record_time) as B from temp.sensor group by Node_sensor having t1.Node_sensor = Node_sensor and t1.Record_time =max(Record_time))"
+        cursor.execute(query)
+        message = cursor.fetchall()
+        print(message)
+        bot.sendMessage(from_id,'[最新節點溫度]')
+        bot.sendMessage(from_id,message)
+
+    elif(query_data == 'averagetemp'):
+        bot.sendMessage(from_id,'Calculating....')
+        query = "select format(sum(message)/6,2) from temp.sensor as t1 where EXISTS (select Node_sensor,max(Record_time) as B from temp.sensor group by Node_sensor having t1.Node_sensor = Node_sensor and t1.Record_time =max(Record_time))"
+        cursor.execute(query)
+        nodesensor = cursor.fetchall()
+        print(nodesensor)
+        bot.sendMessage(from_id,'[目前機房平均溫度]')
+        bot.sendMessage(from_id, nodesensor)
+
+    elif(query_data == 'positionchange'):
+        query = "select Node_sensor,'Original_position:',Changed_position,'Old_position:',Original_position from temp.sensor_position_change where DATE_SUB(CURDATE(), INTERVAL 7 DAY) <= date(Change_time);"
+        cursor.execute(query)
+        recoedtime = cursor.fetchall()
+        print(recoedtime)
+        bot.sendMessage(from_id,'[這週更換節點資訊]')
+        bot.sendMessage(from_id, recoedtime)  
+
+    elif(query_data == 'eachtemp'):
+        query = "select position, sum(Message)/2 From (select Node_sensor,Message,position from temp.sensor as t1 where EXISTS (select Node_sensor,max(Record_time) as B from temp.sensor group by Node_sensor having t1.Node_sensor = Node_sensor and t1.Record_time =max(Record_time)))ordered_result group by position"
+        cursor.execute(query)
+        eachtempre = cursor.fetchall()
+        print(eachtempre)
+        bot.sendMessage(from_id,'[各機櫃溫度]')
+        bot.sendMessage(from_id, eachtempre) 
+
+bot = telepot.Bot(TOKEN)
+MessageLoop(bot, {'chat': on_chat_message,'callback_query': on_callback_query}).run_as_thread()
+print('Listening ...')
+
+while 1:
+    time.sleep(100)
